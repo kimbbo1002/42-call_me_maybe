@@ -16,7 +16,7 @@ class Engine:
 
     def select_function(self, prompt: str) -> str:
         supplied_prompt = (
-            "User Prompt: " + prompt + f"\nThe function to call is: "
+            "User Prompt: " + prompt + f"\nThe function to call is: fn_"
         )
         token_ids = self.llm.encode(supplied_prompt)
         logits = self.llm.get_logits_from_input_ids(token_ids)
@@ -27,10 +27,13 @@ class Engine:
                 token_id = int(token_id_str)
                 check = generated + token_str
 
-                is_valid = any(fn.name.startswith(check) or check == fn.name for fn in self.functions)
+                is_valid = any(
+                    fn.name.startswith(check)
+                    or check == fn.name for fn in self.functions
+                )
                 if not is_valid:
                     logits[token_id] = float('-inf')
-            
+
             next_token_id = numpy.argmax(logits)
             next_token_str = self.vocab[str(next_token_id)]
             generated += next_token_str
@@ -38,38 +41,63 @@ class Engine:
             token_ids += [next_token_id]
             logits = self.llm.get_logits_from_input_ids(token_ids)
         return generated
-    
-    def get_parameters(self, prompt: str, fn: FunctionSchema) -> dict:
-        param_prompt = ""
-        for p_name, p_type in fn.parameters.items():
-            param_prompt += f"{p_name} (type: {p_type.type})\n"
 
-        supplied_prompt = (
-            "User Prompt: " + prompt + f"\nCalled Function: {fn.name}\n"
-            f"All Function Parameters: {param_prompt}\n"
-        )
-        params = {}
-        
-        for p_name, p_type in fn.parameters.items():
-            supplied_prompt += f"{p_name} = "
-            token_ids = self.llm.encode(supplied_prompt)
-            logits = self.llm.get_logits_from_input_ids(token_ids)
-            for token_id_str, token_str in self.vocab.items():
-                token_id = int(token_id_str)
-                if p_type.type == "number":
-                    try:
-                        int(token_str)
-                    except:
-                        logits[token_id] = float('-inf')
-                elif p_type.type == "string":
-                    try:
-                        int(token_str)
-                        logits[token_id] = float('-inf')
-                    except:
-                        pass
-            param_id = numpy.argmax(logits)
-            param_str = self.vocab[str(param_id)]
-            params[p_name] = param_str
-            supplied_prompt += f"{param_str}\n"
-        
-        return params
+    def get_parameters(self, prompt: str, fn: FunctionSchema | None) -> dict:
+        if fn:
+            param_prompt = ""
+            for p_name, p_type in fn.parameters.items():
+                param_prompt += f"{p_name} (type: {p_type.type})\n"
+
+            supplied_prompt = (
+                "User Prompt: " + prompt + f"\nCalled Function: {fn.name}\n"
+                f"All Function Parameters: {param_prompt}\n"
+            )
+            params = {}
+
+            for p_name, p_type in fn.parameters.items():
+                supplied_prompt += f"{p_name} = "
+                token_ids = self.llm.encode(supplied_prompt)
+                logits = self.llm.get_logits_from_input_ids(token_ids)
+                for token_id_str, token_str in self.vocab.items():
+                    token_id = int(token_id_str)
+                    if p_type.type == "number":
+                        try:
+                            int(token_str)
+                        except ValueError:
+                            logits[token_id] = float('-inf')
+                    elif p_type.type == "string":
+                        try:
+                            int(token_str)
+                            logits[token_id] = float('-inf')
+                        except ValueError:
+                            pass
+                param_id = numpy.argmax(logits)
+                param_str = self.vocab[str(param_id)]
+                params[p_name] = param_str
+                supplied_prompt += f"{param_str}\n"
+
+            return params
+        else:
+            return {}
+    
+    def write_output(self, prompt: str, selected_fn: FunctionSchema, params: dict):
+        # write to json manually
+
+        # vs 
+        # write to json with the content made from llm_sdk
+        pass
+
+    def start_sim(self) -> None:
+        functions, prompts = load_input_files()
+        for prompt in prompts:
+            fn = "fn_" + self.select_function(prompt)
+            selected_fn: FunctionSchema | None = None
+            for function in functions:
+                if fn == function.name:
+                    selected_fn = function
+                    break
+            params = self.get_parameters(prompt, selected_fn)
+            # test
+            print(f"prompt: {prompt}")
+            print(f"selected function: {fn}")
+            print(f"params: {params}")
