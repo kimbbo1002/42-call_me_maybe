@@ -1,1 +1,5 @@
-cmm.pdf
+__pycache__
+.venv
+output/
+TODO.md
+uv.lock
