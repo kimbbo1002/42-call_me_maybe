@@ -1,18 +1,17 @@
 PYTHON = uv run python3
 MAIN = main.py
-FILE = launcher.py
-BENCH = launcher_bench.py
-VENV = .venv
-ARG ?=
+FUNC = data/input/functions_definition.json
+INPUT = data/input/function_calling_tests.json
+OUTPUT = data/output/function_calls.json
 
 install:
 	uv sync
 
 run:
-	uv run $(FILE)
-
-bench:
-	uv run $(BENCH)
+	uv run python -m src \
+  	--function_defs $(FUNC) \
+  	--input $(INPUT) \
+  	--output $(OUTPUT)
 
 debug:
 	$(PYTHON) -m pdb $(MAIN) $(ARG)
@@ -32,5 +31,6 @@ clean:
 fclean: clean
 	rm -rf uv.lock
 	rm -rf .venv
+	rm -rf data/output/
 
-.PHONY: install run pick debug lint lint-strict clean fclean
+.PHONY: install run debug lint lint-strict clean fclean
