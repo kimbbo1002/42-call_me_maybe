@@ -2,9 +2,8 @@ from llm_sdk.llm_sdk import Small_LLM_Model
 import json
 import os
 import numpy
-from .models import load_input_files
-from .models import Parameter, TestPromptSchema, OutputSchema, FunctionSchema
-from typing import Dict, List
+from .models import TestPromptSchema, FunctionSchema
+from typing import List
 
 
 class Engine:
@@ -48,7 +47,7 @@ class Engine:
     def get_parameters(self, prompt: str, fn: FunctionSchema | None) -> dict:
         if not fn:
             return {}
-        
+
         param_defs = ""
         for p_name, p_type in fn.parameters.items():
             param_defs += f"{p_name} (type: {p_type.type})\n"
@@ -79,26 +78,31 @@ class Engine:
                         if token_str not in ["True", "False"]:
                             logits[token_id] = float('-inf')
                     elif p_type.type == "number":
-                        is_valid = all(c.isdigit() or c == '.' for c in token_str.strip())
+                        is_valid = all(c.isdigit()
+                                       or c == '.' for c in token_str.strip())
                         if not is_valid or token_str.strip() == '':
                             logits[token_id] = float('-inf')
                     elif p_type.type == "string":
                         if 'Ċ' in token_str or '=' in token_str:
                             logits[token_id] = float('-inf')
-                
+
                 for token_id in range(len(logits)):
                     if token_id not in self.id_to_token:
                         logits[token_id] = float('-inf')
-                
+
                 next_token_id = int(numpy.argmax(logits))
                 next_token_str = self.id_to_token[next_token_id]
                 if next_token_str == '.':
                     n_decimals += 1
 
                 if p_type.type == "number":
-                    if not all(c.isdigit() or c == '.' for c in next_token_str.strip()):
+                    if not all(c.isdigit() or c == '.'
+                               for c in next_token_str.strip()):
                         break
-                    if generated and '.' in generated and '.' not in next_token_str:
+                    if (
+                        generated and '.' in generated
+                        and '.' not in next_token_str
+                    ):
                         generated += next_token_str
                         token_ids_list.append(next_token_id)
                         break
@@ -122,7 +126,7 @@ class Engine:
                         break
                 if len(generated) > len(prompt) / 2:
                     break
-                
+
                 generated += next_token_str
                 if n_decimals == 1 and not next_token_str == '.':
                     n_decimals += 2
@@ -136,18 +140,30 @@ class Engine:
             params[p_name] = value
             print(f"{p_name}: {params[p_name]}")
             param_prompt += f"{generated.strip()}\n"
-        
+
         return params
 
-    def get_output(self, prompt: str, selected_fn: FunctionSchema, params: dict) -> dict:
-        return {"prompt": prompt.prompt, "name": selected_fn.name, "parameters": params}
+    def get_output(
+            self, prompt: str,
+            selected_fn: FunctionSchema,
+            params: dict
+    ) -> dict:
+        return (
+            {"prompt": prompt.prompt,
+             "name": selected_fn.name,
+             "parameters": params}
+        )
 
     def write_output(self) -> None:
         os.makedirs(os.path.dirname(self.output_file), exist_ok=True)
         with open(self.output_file, "w") as file:
             json.dump(self.output, file, indent="\t")
 
-    def start_sim(self, functions: List[FunctionSchema], prompts: List[TestPromptSchema], output_file: str) -> None:
+    def start_sim(
+            self, functions: List[FunctionSchema],
+            prompts: List[TestPromptSchema],
+            output_file: str
+    ) -> None:
         # load prompts and functions
         self.output_file = output_file
         self.functions = functions
@@ -164,5 +180,5 @@ class Engine:
                     break
             params = self.get_parameters(prompt.prompt, selected_fn)
             self.output.append(self.get_output(prompt, selected_fn, params))
-        
+
         self.write_output()

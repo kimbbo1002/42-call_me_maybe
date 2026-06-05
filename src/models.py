@@ -1,7 +1,7 @@
 import json
 import argparse
 from pydantic import BaseModel, ValidationError
-from typing import Dict, Any, List, Tuple
+from typing import Dict, List, Tuple
 
 
 class TestPromptSchema(BaseModel):
@@ -25,7 +25,7 @@ class OutputSchema(BaseModel):
 
 def load_input_files() -> Tuple[List, List]:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--function_definition",
+    parser.add_argument("--function_defs",
                         default="data/input/functions_definition.json")
     parser.add_argument("--input",
                         default="data/input/function_calling_tests.json")
@@ -34,7 +34,7 @@ def load_input_files() -> Tuple[List, List]:
     args = parser.parse_args()
 
     try:
-        with open(args.function_definition, "r") as file:
+        with open(args.function_defs, "r") as file:
             functions_raw = json.load(file)
         functions = [FunctionSchema(**func) for func in functions_raw]
     except (FileNotFoundError, json.JSONDecodeError) as e:
