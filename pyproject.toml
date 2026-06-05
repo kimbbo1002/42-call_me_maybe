@@ -6,4 +6,9 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "pydantic",
+    "numpy",
+    "torch",
+    "transformers"
 ]
+[tool.uv.sources]
+llm-sdk = { path = "./llm_sdk" }
