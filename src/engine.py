@@ -94,7 +94,6 @@ class Engine:
                 next_token_str = self.id_to_token[next_token_id]
                 if next_token_str == '.':
                     n_decimals += 1
-                print(f"p_name='{p_name}', generated='{generated}', next='{next_token_str}'")
 
                 if p_type.type == "number":
                     if not all(c.isdigit() or c == '.' for c in next_token_str.strip()):
@@ -121,6 +120,8 @@ class Engine:
                 elif p_type.type == "integer":
                     if not next_token_str.isdigit():
                         break
+                if len(generated) > len(prompt) / 2:
+                    break
                 
                 generated += next_token_str
                 if n_decimals == 1 and not next_token_str == '.':
@@ -139,7 +140,7 @@ class Engine:
         return params
 
     def get_output(self, prompt: str, selected_fn: FunctionSchema, params: dict) -> dict:
-        return {"prompt": prompt, "name": selected_fn.name, "parameters": params}
+        return {"prompt": prompt.prompt, "name": selected_fn.name, "parameters": params}
 
     def write_output(self) -> None:
         os.makedirs(os.path.dirname(self.output_file), exist_ok=True)
@@ -154,7 +155,7 @@ class Engine:
         # execute each prompt and generate output
         for prompt in prompts:
             fn = self.select_function(prompt.prompt)
-            print(f"prompt = {prompt.prompt}")
+            print(f"\n\nprompt = {prompt.prompt}")
             print(f"selected function : {fn}\n")
             selected_fn: FunctionSchema | None = None
             for function in functions:
