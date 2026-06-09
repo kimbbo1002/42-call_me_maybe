@@ -3,9 +3,12 @@ from .models import load_input_files
 
 
 def main() -> None:
-    functions, prompts, output_file = load_input_files()
-    engine = Engine()
-    engine.start_sim(functions, prompts, output_file)
+    try:
+        functions, prompts, output_file = load_input_files()
+        engine = Engine()
+        engine.start_engine(functions, prompts, output_file)
+    except Exception as e:
+        print(e)
 
 
 if __name__ == "__main__":
