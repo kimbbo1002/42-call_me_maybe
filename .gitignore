@@ -2,4 +2,5 @@ __pycache__
 .venv
 output/
 TODO.md
-uv.lock
+moulinette.zip
+moulinette
