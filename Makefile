@@ -9,20 +9,20 @@ install:
 
 run:
 	uv run python -m src \
-  	--function_defs $(FUNC) \
-  	--input $(INPUT) \
-  	--output $(OUTPUT)
+	--function_defs $(FUNC) \
+	--input $(INPUT) \
+	--output $(OUTPUT)
 
 debug:
 	$(PYTHON) -m pdb $(MAIN) $(ARG)
 
 lint:
-	flake8
-	mypy . --explicit-package-bases --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
+	flake8 *.py
+	mypy . --explicit-package-bases --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs *.py
 
 lint-strict:
-	flake8
-	mypy . --explicit-package-bases --strict
+	flake8 *.py
+	mypy . --explicit-package-bases --strict *.py
 
 clean:
 	rm -rf `find . -type d -name "__pycache__"`
