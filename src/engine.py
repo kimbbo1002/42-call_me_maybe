@@ -61,7 +61,10 @@ class Engine:
 
         return self.find_function_by_name(generated)
 
-    def select_parameter(self, prompt: str, fn: FunctionSchema) -> Dict[str, Any]:
+    def select_parameter(
+            self, prompt: str,
+            fn: FunctionSchema
+    ) -> Dict[str, Any]:
         param_defs = ""
         for p_name, p_type in fn.parameters.items():
             param_defs += f"{p_name} (type: {p_type.type})\n"
@@ -78,43 +81,64 @@ class Engine:
             token_ids = self.llm.encode(param_prompt).tolist()[0]
             logits = self.llm.get_logits_from_input_ids(token_ids)
             generated = ""
+            quote_char = None
 
             for _ in range(30):
-                logits_cpy = logits.copy()
-                
+
                 # constrained decoding for types of parameters
                 for token_id, token_str in self.id_to_token.items():
-                    logits[token_id] = float('-inf')
 
                     if p_type.type == "number":
-                        if token_str.isdigit() or token_str == "." or token_str == "-":
-                            logits[token_id] = logits_cpy[token_id]
-                    if p_type.type == "string":
-                        logits[token_id] = logits_cpy[token_id]
+                        if (
+                            not token_str.isdigit()
+                            and token_str not in [".", "-"]
+                        ):
+                            logits[token_id] = float('-inf')
+
+                for i in range(len(logits)):
+                    if i not in self.id_to_token:
+                        logits[i] = float('-inf')
 
                 next_token_id = np.argmax(logits)
-                next_token_str = self.id_to_token[next_token_id].replace('Ġ', ' ').replace('Ċ', '\n').strip()
-                
+                next_token_str = self.id_to_token[next_token_id]
+
                 if p_type.type == "number":
-                    if generated and "." in generated and next_token_str.isdigit():
+                    if (
+                        generated and "." in generated 
+                        and next_token_str.isdigit()
+                    ):
                         generated += next_token_str
                         token_ids.append(next_token_id)
                         generated = float(generated)
                         break
                 if p_type.type == "string":
-                    if "'" in generated or '"' in generated:
-                        if next_token_str in ["'", '"']:
-                            break
-                generated += next_token_str
+                    if (
+                        quote_char is None 
+                        and next_token_str.replace('Ġ', '') in ("'", '"')
+                    ):
+                        quote_char = next_token_str.replace('Ġ', '')
+                        token_ids.append(next_token_id)
+                        logits = self.llm.get_logits_from_input_ids(token_ids)
+                        continue
+                    if (
+                        (quote_char and next_token_str.strip() == quote_char)
+                        or 'Ċ' in next_token_str
+                    ):
+                        break
+
+                generated += next_token_str.replace('Ġ', ' ')
                 token_ids.append(next_token_id)
                 logits = self.llm.get_logits_from_input_ids(token_ids)
 
-            param_prompt += f"{generated}\n"
+            param_prompt += f"{repr(generated)}\n"
             params[p_name] = generated
 
         return params
 
-    def generate_output(self, prompt: TestPromptSchema, fn: FunctionSchema, params: Dict[str, Any]) -> None:
+    def generate_output(
+            self, prompt: TestPromptSchema,
+            fn: FunctionSchema, params: Dict[str, Any]
+    ) -> None:
         prompt_output = {
             "prompt": prompt.prompt,
             "name": fn.name,
@@ -127,7 +151,11 @@ class Engine:
         with open(self.output_file, "w") as file:
             json.dump(self.output, file, indent="\t")
 
-    def start_engine(self, functions: List[FunctionSchema], prompts: List[TestPromptSchema], output_file: str) -> None:
+    def start_engine(
+            self, functions: List[FunctionSchema],
+            prompts: List[TestPromptSchema],
+            output_file: str
+    ) -> None:
         self.functions = functions
         for fn in self.functions:
             self.function_names.append(fn.name)
