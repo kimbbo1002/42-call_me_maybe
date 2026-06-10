@@ -13,6 +13,7 @@ class Engine:
         self.function_names: List[str] = []
         self.output_file = ""
         self.output: List[Dict[str, Any]] = []
+        self.id_to_token: Dict[int, str] = {}
 
         vocab_path = self.llm.get_path_to_vocab_file()
         with open(vocab_path, "r") as file:
@@ -20,8 +21,6 @@ class Engine:
         self.id_to_token = {}
         for tkn, id in self.token_to_id.items():
             self.id_to_token[id] = tkn
-        print(len(self.token_to_id))
-        print(len(self.id_to_token))
 
     def find_function_by_name(self, fn_name: str) -> FunctionSchema | None:
         for fn in self.functions:
@@ -29,41 +28,39 @@ class Engine:
                 return fn
         return None
 
+    def ft_decode(self, id: int) -> str:
+        token_str = self.id_to_token[id]
+        return token_str.replace('Ġ', ' ').replace('Ċ', '\n')
+
     def select_function(self, prompt: str) -> FunctionSchema | None:
         fn_defs = ""
         for i, fn in enumerate(self.functions):
             fn_defs += f"{i}: {fn.name}: {fn.description}\n"
         fn_prompt = (
-            f"Functions:\n{fn_defs}\n"
-            f"User Prompt: {prompt}\n"
-            f"Which function best matches the user prompt?"
-            f"The answer is: "
+            f"Select the most appropriate function for the user's request.\n\n"
+            f"Available functions:\n{fn_defs}\n"
+            f"User request: {prompt}\n\n"
+            f"The most appropriate function name is: "
         )
 
         token_ids = self.llm.encode(fn_prompt).tolist()[0]
-        logits = self.llm.get_logits_from_input_ids(token_ids)
         generated = ""
+
         while generated not in self.function_names:
-            logits_cpy = logits.copy()
-
-            # constrained decoding to get function names
-            for token_id, token_str in self.id_to_token.items():
-                logits[token_id] = float('-inf')
-                for fn_name in self.function_names:
-                    if fn_name.startswith(generated + token_str):
-                        logits[token_id] = logits_cpy[token_id]
-                        break
-            masked_logits = np.full(len(logits), float('-inf'))
-            for token_id in self.id_to_token:
-                masked_logits[token_id] = logits[token_id]
-            logits = list(masked_logits)
-
-            # adding to tokens and recalculating logits
-            next_token_id = np.argmax(logits)
-            next_token_str = self.id_to_token[next_token_id]
-            generated += next_token_str
-            token_ids.append(next_token_id)
             logits = self.llm.get_logits_from_input_ids(token_ids)
+
+            masked_logits = np.full(len(logits), float('-inf'))
+            for _, token_id in self.token_to_id.items():
+                clean_token_str = self.ft_decode(token_id)
+                for fn_name in self.function_names:
+                    if fn_name.startswith(generated + clean_token_str):
+                        masked_logits[token_id] = logits[token_id]
+                        break
+
+            next_token_id = int(np.argmax(masked_logits))
+            next_token_str = self.ft_decode(next_token_id)
+            token_ids.append(next_token_id)
+            generated += next_token_str
 
         return self.find_function_by_name(generated)
 
@@ -85,33 +82,29 @@ class Engine:
         for p_name, p_type in fn.parameters.items():
             param_prompt += f"{p_name} = "
             token_ids = self.llm.encode(param_prompt).tolist()[0]
-            logits = self.llm.get_logits_from_input_ids(token_ids)
             generated = ""
             quote_char = None
 
             for _ in range(30):
+                logits = self.llm.get_logits_from_input_ids(token_ids)
 
                 masked_logits = np.full(len(logits), float('-inf'))
-                for token_id in self.id_to_token:
-                    masked_logits[token_id] = logits[token_id]
-                logits = list(masked_logits)
-
-                # constrained decoding for types of parameters
-                for token_id, token_str in self.id_to_token.items():
-
+                for _, token_id in self.token_to_id.items():
+                    token_str = self.ft_decode(token_id)
                     if p_type.type == "number":
                         if (
-                            not token_str.isdigit()
-                            and token_str not in [".", "-"]
+                            token_str.isdigit()
+                            or token_str in [".", "-"]
                         ):
-                            logits[token_id] = float('-inf')
+                            masked_logits[token_id] = logits[token_id]
+                    else:
+                        masked_logits[token_id] = logits[token_id]
 
-                next_token_id = np.argmax(logits)
-                next_token_str = self.id_to_token[next_token_id]
+                next_token_id = int(np.argmax(masked_logits))
+                next_token_str = self.ft_decode(next_token_id)
 
-                if "Ċ" in next_token_str:
+                if "\n" in next_token_str:
                     break
-
                 if p_type.type == "number":
                     if (
                         generated and "." in generated
@@ -120,32 +113,30 @@ class Engine:
                         generated += next_token_str
                         token_ids.append(next_token_id)
                         break
-                if p_type.type == "string":
+                elif p_type.type == "string":
                     if (
                         quote_char is None
-                        and next_token_str.replace('Ġ', '') in ("'", '"')
+                        and next_token_str in ["'", '"']
                     ):
-                        quote_char = next_token_str.replace('Ġ', '')
+                        quote_char = next_token_str
                         token_ids.append(next_token_id)
-                        logits = self.llm.get_logits_from_input_ids(token_ids)
                         continue
-                    if (
-                        (quote_char and next_token_str.strip() == quote_char)
-                        or 'Ċ' in next_token_str
+                    elif (
+                        quote_char
+                        and next_token_str.strip() == quote_char
                     ):
                         break
 
-                generated += next_token_str.replace('Ġ', ' ')
                 token_ids.append(next_token_id)
-                logits = self.llm.get_logits_from_input_ids(token_ids)
+                generated += next_token_str
 
-            param_prompt += f"{repr(generated)}\n"
+            param_prompt += generated + '\n'
             if p_type.type == "number":
                 params[p_name] = float(generated)
             elif generated.isdigit():
                 params[p_name] = int(generated)
             else:
-                params[p_name] = generated
+                params[p_name] = generated.strip().strip("'\"").strip()
 
         return params
 
@@ -180,10 +171,10 @@ class Engine:
                 func: FunctionSchema | None = self.select_function(p.prompt)
                 if func:
                     print(f"\n\nPrompt: {p.prompt}")
-                    print(f"Function: {fn.name}")
-                    params = self.select_parameter(p.prompt, fn)
+                    print(f"Function: {func.name}")
+                    params = self.select_parameter(p.prompt, func)
                     print(f"Params: {params}")
-                    self.generate_output(p, fn, params)
+                    self.generate_output(p, func, params)
             self.write_output()
         except Exception as e:
             raise ValueError(
