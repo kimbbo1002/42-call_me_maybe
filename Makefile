@@ -17,12 +17,12 @@ debug:
 	$(PYTHON) -m pdb $(MAIN) $(ARG)
 
 lint:
-	flake8 *.py
-	mypy . --explicit-package-bases --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs *.py
+	flake8 src/
+	mypy . --explicit-package-bases --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs src/
 
 lint-strict:
-	flake8 *.py
-	mypy . --explicit-package-bases --strict *.py
+	flake8 src/
+	mypy . --explicit-package-bases --strict src/
 
 clean:
 	rm -rf `find . -type d -name "__pycache__"`
