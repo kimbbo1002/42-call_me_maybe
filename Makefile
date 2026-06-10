@@ -18,11 +18,11 @@ debug:
 
 lint:
 	flake8 src/
-	mypy . --explicit-package-bases --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs src/
+	mypy src/ --explicit-package-bases --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
 
 lint-strict:
 	flake8 src/
-	mypy . --explicit-package-bases --strict src/
+	mypy src/ --explicit-package-bases --strict
 
 clean:
 	rm -rf `find . -type d -name "__pycache__"`
