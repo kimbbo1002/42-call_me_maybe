@@ -20,6 +20,8 @@ class Engine:
         self.id_to_token = {}
         for tkn, id in self.token_to_id.items():
             self.id_to_token[id] = tkn
+        print(len(self.token_to_id))
+        print(len(self.id_to_token))
 
     def find_function_by_name(self, fn_name: str) -> FunctionSchema | None:
         for fn in self.functions:
@@ -51,6 +53,10 @@ class Engine:
                     if fn_name.startswith(generated + token_str):
                         logits[token_id] = logits_cpy[token_id]
                         break
+            masked_logits = np.full(len(logits), float('-inf'))
+            for token_id in self.id_to_token:
+                masked_logits[token_id] = logits[token_id]
+            logits = masked_logits
 
             # adding to tokens and recalculating logits
             next_token_id = np.argmax(logits)
@@ -85,6 +91,11 @@ class Engine:
 
             for _ in range(30):
 
+                masked_logits = np.full(len(logits), float('-inf'))
+                for token_id in self.id_to_token:
+                    masked_logits[token_id] = logits[token_id]
+                logits = masked_logits
+
                 # constrained decoding for types of parameters
                 for token_id, token_str in self.id_to_token.items():
 
@@ -95,25 +106,23 @@ class Engine:
                         ):
                             logits[token_id] = float('-inf')
 
-                for i in range(len(logits)):
-                    if i not in self.id_to_token:
-                        logits[i] = float('-inf')
-
                 next_token_id = np.argmax(logits)
                 next_token_str = self.id_to_token[next_token_id]
 
+                if "Ċ" in next_token_str:
+                    break
+
                 if p_type.type == "number":
                     if (
-                        generated and "." in generated 
+                        generated and "." in generated
                         and next_token_str.isdigit()
                     ):
                         generated += next_token_str
                         token_ids.append(next_token_id)
-                        generated = float(generated)
                         break
                 if p_type.type == "string":
                     if (
-                        quote_char is None 
+                        quote_char is None
                         and next_token_str.replace('Ġ', '') in ("'", '"')
                     ):
                         quote_char = next_token_str.replace('Ġ', '')
@@ -131,7 +140,12 @@ class Engine:
                 logits = self.llm.get_logits_from_input_ids(token_ids)
 
             param_prompt += f"{repr(generated)}\n"
-            params[p_name] = generated
+            if p_type.type == "number":
+                params[p_name] = float(generated)
+            elif generated.isdigit():
+                params[p_name] = int(generated)
+            else:
+                params[p_name] = generated
 
         return params
 
@@ -156,16 +170,21 @@ class Engine:
             prompts: List[TestPromptSchema],
             output_file: str
     ) -> None:
-        self.functions = functions
-        for fn in self.functions:
-            self.function_names.append(fn.name)
-        self.output_file = output_file
+        try:
+            self.functions = functions
+            for fn in self.functions:
+                self.function_names.append(fn.name)
+            self.output_file = output_file
 
-        for p in prompts:
-            fn = self.select_function(p.prompt)
-            print(f"\n\nPrompt: {p.prompt}")
-            print(f"Function: {fn.name}")
-            params = self.select_parameter(p.prompt, fn)
-            print(f"Params: {params}")
-            self.generate_output(p, fn, params)
-        self.write_output()
+            for p in prompts:
+                fn = self.select_function(p.prompt)
+                print(f"\n\nPrompt: {p.prompt}")
+                print(f"Function: {fn.name}")
+                params = self.select_parameter(p.prompt, fn)
+                print(f"Params: {params}")
+                self.generate_output(p, fn, params)
+            self.write_output()
+        except Exception as e:
+            raise ValueError(
+                f"\033[0;31mGENERATION ERROR:\033[0m {e}"
+            )
