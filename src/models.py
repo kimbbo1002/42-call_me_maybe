@@ -23,7 +23,8 @@ class OutputSchema(BaseModel):
     pass
 
 
-def load_input_files() -> Tuple[List, List]:
+def load_input_files(
+) -> Tuple[List[FunctionSchema], List[TestPromptSchema], str]:
     parser = argparse.ArgumentParser()
     try:
         try:

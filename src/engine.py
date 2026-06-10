@@ -7,10 +7,10 @@ from typing import List, Dict, Any
 
 
 class Engine:
-    def __init__(self):
+    def __init__(self) -> None:
         self.llm = Small_LLM_Model()
         self.functions: List[FunctionSchema] = []
-        self.function_names = []
+        self.function_names: List[str] = []
         self.output_file = ""
         self.output: List[Dict[str, Any]] = []
 
@@ -56,7 +56,7 @@ class Engine:
             masked_logits = np.full(len(logits), float('-inf'))
             for token_id in self.id_to_token:
                 masked_logits[token_id] = logits[token_id]
-            logits = masked_logits
+            logits = list(masked_logits)
 
             # adding to tokens and recalculating logits
             next_token_id = np.argmax(logits)
@@ -81,7 +81,7 @@ class Engine:
             f"Extract the parameter values from the user prompt.\n"
         )
 
-        params = {}
+        params: Dict[str, Any] = {}
         for p_name, p_type in fn.parameters.items():
             param_prompt += f"{p_name} = "
             token_ids = self.llm.encode(param_prompt).tolist()[0]
@@ -94,7 +94,7 @@ class Engine:
                 masked_logits = np.full(len(logits), float('-inf'))
                 for token_id in self.id_to_token:
                     masked_logits[token_id] = logits[token_id]
-                logits = masked_logits
+                logits = list(masked_logits)
 
                 # constrained decoding for types of parameters
                 for token_id, token_str in self.id_to_token.items():
@@ -177,12 +177,13 @@ class Engine:
             self.output_file = output_file
 
             for p in prompts:
-                fn = self.select_function(p.prompt)
-                print(f"\n\nPrompt: {p.prompt}")
-                print(f"Function: {fn.name}")
-                params = self.select_parameter(p.prompt, fn)
-                print(f"Params: {params}")
-                self.generate_output(p, fn, params)
+                func: FunctionSchema | None = self.select_function(p.prompt)
+                if func:
+                    print(f"\n\nPrompt: {p.prompt}")
+                    print(f"Function: {fn.name}")
+                    params = self.select_parameter(p.prompt, fn)
+                    print(f"Params: {params}")
+                    self.generate_output(p, fn, params)
             self.write_output()
         except Exception as e:
             raise ValueError(
