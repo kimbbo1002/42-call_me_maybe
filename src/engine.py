@@ -7,8 +7,8 @@ from typing import List, Dict, Any
 
 
 class Engine:
-    def __init__(self) -> None:
-        self.llm = Small_LLM_Model()
+    def __init__(self, model: str) -> None:
+        self.llm = Small_LLM_Model(model_name=model)
         self.functions: List[FunctionSchema] = []
         self.function_names: List[str] = []
         self.output_file = ""
@@ -59,6 +59,7 @@ class Engine:
 
             next_token_id = int(np.argmax(masked_logits))
             next_token_str = self.ft_decode(next_token_id)
+            print(next_token_str, end="", flush=True)
             token_ids.append(next_token_id)
             generated += next_token_str
 
@@ -80,6 +81,7 @@ class Engine:
 
         params: Dict[str, Any] = {}
         for p_name, p_type in fn.parameters.items():
+            print(f"\n{p_name}: ", end="", flush=True)
             param_prompt += f"{p_name} = "
             token_ids = self.llm.encode(param_prompt).tolist()[0]
             generated = ""
@@ -105,6 +107,8 @@ class Engine:
 
                 if "\n" in next_token_str:
                     break
+                print(next_token_str, end="", flush=True)
+
                 if p_type.type == "number":
                     if (
                         generated and "." in generated
@@ -126,17 +130,18 @@ class Engine:
                         and next_token_str.strip() == quote_char
                     ):
                         break
-
                 token_ids.append(next_token_id)
                 generated += next_token_str
 
             param_prompt += generated + '\n'
             if p_type.type == "number":
                 params[p_name] = float(generated)
-            elif generated.isdigit():
-                params[p_name] = int(generated)
             else:
-                params[p_name] = generated.strip().strip("'\"").strip()
+                try:
+                    int(generated)
+                    params[p_name] = int(generated)
+                except ValueError:
+                    params[p_name] = generated.strip().strip("'\"").strip()
 
         return params
 
@@ -162,20 +167,29 @@ class Engine:
             output_file: str
     ) -> None:
         try:
+            print(
+                f"\n\033[1;32m=== Launching Call-Me-Maybe "
+                f"with {self.llm._model_name} ===\033[0m", end=""
+            )
             self.functions = functions
             for fn in self.functions:
                 self.function_names.append(fn.name)
             self.output_file = output_file
 
             for p in prompts:
+                print(f"\n\n\033[1;34mPrompt:\033[0m {p.prompt}")
+                print("\033[1;34mFunction:\033[0m", end="")
                 func: FunctionSchema | None = self.select_function(p.prompt)
                 if func:
-                    print(f"\n\nPrompt: {p.prompt}")
-                    print(f"Function: {func.name}")
+                    print("\n\033[1;34mParams: \033[0m", end="")
                     params = self.select_parameter(p.prompt, func)
-                    print(f"Params: {params}")
                     self.generate_output(p, func, params)
             self.write_output()
+            print(
+                f"\n\n\033[1;32m=== Call-Me-Maybe finished — "
+                f"{len(prompts)} prompt(s) written to "
+                f"{self.output_file} ===\033[0m\n"
+            )
         except Exception as e:
             raise ValueError(
                 f"\033[0;31mGENERATION ERROR:\033[0m {e}"

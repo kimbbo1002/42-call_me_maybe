@@ -24,7 +24,7 @@ class OutputSchema(BaseModel):
 
 
 def load_input_files(
-) -> Tuple[List[FunctionSchema], List[TestPromptSchema], str]:
+) -> Tuple[List[FunctionSchema], List[TestPromptSchema], str, str]:
     parser = argparse.ArgumentParser()
     try:
         try:
@@ -37,6 +37,10 @@ def load_input_files(
             parser.add_argument(
                 "--output",
                 default="data/output/function_calling_results.json"
+            )
+            parser.add_argument(
+                "--model",
+                default="Qwen/Qwen3-0.6B"
             )
             args = parser.parse_args()
         except Exception as e:
@@ -68,4 +72,4 @@ def load_input_files(
             f"\033[0;31mPARSING ERROR:\033[0m {e}"
         )
 
-    return functions, prompts, args.output
+    return functions, prompts, args.output, args.model
