@@ -73,10 +73,12 @@ class Engine:
         for p_name, p_type in fn.parameters.items():
             param_defs += f"{p_name} (type: {p_type.type})\n"
         param_prompt = (
-            f"User prompt: {prompt}\n"
-            f"Called Function: {fn.name}\n"
-            f"All Function Parameters:\n{param_defs}\n"
-            f"Extract the parameter values from the user prompt.\n"
+            f"<|im_start|>system\nExtract parameter values exactly as they appear "
+            f"in the user prompt. Preserve negative signs and exact values.<|im_end|>\n"
+            f"<|im_start|>user\nFunction: {fn.name}\n"
+            f"Parameters:\n{param_defs}\n"
+            f"User prompt: {prompt}<|im_end|>\n"
+            f"<|im_start|>assistant\nExtracted values:\n"
         )
 
         params: Dict[str, Any] = {}
@@ -133,11 +135,17 @@ class Engine:
 
             param_prompt += generated + '\n'
             if p_type.type == "number":
-                params[p_name] = float(generated)
+                if f"-{generated}" in prompt:
+                    params[p_name] = -1 * float(generated)
+                else:
+                    params[p_name] = float(generated)
             else:
                 try:
                     int(generated)
-                    params[p_name] = int(generated)
+                    if f"-{generated}" in prompt:
+                        params[p_name] = -1 * int(generated)
+                    else:
+                        params[p_name] = int(generated)
                 except ValueError:
                     params[p_name] = generated.strip().strip("'\"").strip()
         for k, v in params.items():
