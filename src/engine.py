@@ -81,7 +81,6 @@ class Engine:
 
         params: Dict[str, Any] = {}
         for p_name, p_type in fn.parameters.items():
-            print(f"\n{p_name}: ", end="", flush=True)
             param_prompt += f"{p_name} = "
             token_ids = self.llm.encode(param_prompt).tolist()[0]
             generated = ""
@@ -107,7 +106,6 @@ class Engine:
 
                 if "\n" in next_token_str:
                     break
-                print(next_token_str, end="", flush=True)
 
                 if p_type.type == "number":
                     if (
@@ -142,7 +140,8 @@ class Engine:
                     params[p_name] = int(generated)
                 except ValueError:
                     params[p_name] = generated.strip().strip("'\"").strip()
-
+        for k, v in params.items():
+            print(f"{k}: {v}", flush=True)
         return params
 
     def generate_output(
@@ -181,7 +180,7 @@ class Engine:
                 print("\033[1;34mFunction:\033[0m", end="")
                 func: FunctionSchema | None = self.select_function(p.prompt)
                 if func:
-                    print("\n\033[1;34mParams: \033[0m", end="")
+                    print("\n\033[1;34mParams: \n\033[0m", end="")
                     params = self.select_parameter(p.prompt, func)
                     self.generate_output(p, func, params)
             self.write_output()
