@@ -3,6 +3,7 @@ MAIN = main.py
 FUNC = data/input/functions_definition.json
 INPUT = data/input/function_calling_tests.json
 OUTPUT = data/output/function_calls.json
+MODEL_LLM = HuggingFaceTB/SmolLM2-135M-Instruct
 
 install:
 	uv sync
