@@ -37,9 +37,15 @@ class Engine:
         for i, fn in enumerate(self.functions):
             fn_defs += f"{i}: {fn.name}: {fn.description}\n"
         fn_prompt = (
-            f"Select the most appropriate function for the user's request.\n\n"
+            f"<|im_start|>system\n"
+            f"You are a function selection assistant. "
+            f"Choose the function that best matches the user's request.\n"
+            f"<|im_end|>\n"
+            f"<|im_start|>user\n"
             f"Available functions:\n{fn_defs}\n"
-            f"User request: {prompt}\n\n"
+            f"User request: {prompt}\n"
+            f"<|im_end|>\n"
+            f"<|im_start|>assistant\n"
             f"The most appropriate function name is: "
         )
 
@@ -73,8 +79,10 @@ class Engine:
         for p_name, p_type in fn.parameters.items():
             param_defs += f"{p_name} (type: {p_type.type})\n"
         param_prompt = (
-            f"<|im_start|>system\nExtract parameter values exactly as they appear "
-            f"in the user prompt. Preserve negative signs and exact values.<|im_end|>\n"
+            f"<|im_start|>system\nExtract parameter values "
+            "exactly as they appear "
+            f"in the user prompt. Preserve negative signs "
+            "and exact values.<|im_end|>\n"
             f"<|im_start|>user\nFunction: {fn.name}\n"
             f"Parameters:\n{param_defs}\n"
             f"User prompt: {prompt}<|im_end|>\n"
